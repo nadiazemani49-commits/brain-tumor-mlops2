@@ -1,0 +1,24 @@
+services:
+  api:
+    build:
+      context: .
+      args:
+        PIP_DEFAULT_TIMEOUT: "300"
+    container_name: brain-tumor-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.13.0
+    container_name: brain-tumor-mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/mlflow/mlruns
+    command: mlflow server --host 0.0.0.0 --port 5000
+    restart: unless-stopped

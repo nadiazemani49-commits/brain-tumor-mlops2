@@ -1,0 +1,26 @@
+name: CI/CD Brain Tumor API
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: pip install fastapi uvicorn timm albumentations opencv-python-headless Pillow numpy python-multipart torch torchvision --index-url https://download.pytorch.org/whl/cpu pytest httpx
+      - name: Test
+        run: pytest tests/ -v
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build Docker
+        run: docker build -t brain-tumor-api .
