@@ -64,10 +64,12 @@ class BrainTumorClassifier(nn.Module):
         return self.classifier(self.backbone(x))
 
 # ── Chargement du modèle au démarrage ────────────────────────────────────────
+import os
+CI_MODE = os.getenv("CI", "false").lower() == "true"
 print("⏳ Chargement du modèle...")
 model = BrainTumorClassifier().to(DEVICE)
 
-if MODEL_PATH.exists():
+if MODEL_PATH.exists() and not CI_MODE:
     checkpoint = torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
     TRAIN_MEAN = checkpoint.get('train_mean', [0.485, 0.456, 0.406])
@@ -76,6 +78,8 @@ if MODEL_PATH.exists():
 else:
     TRAIN_MEAN = [0.485, 0.456, 0.406]
     TRAIN_STD  = [0.229, 0.224, 0.225]
+    if CI_MODE:
+        print("⚠️  CI MODE — modèle non chargé (weights random)")
     print("⚠️  Modèle non trouvé — utilisation des poids aléatoires")
 
 model.eval()
