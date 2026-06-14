@@ -1,26 +1,79 @@
-name: CI/CD Brain Tumor API
+name: CI/CD Brain Tumor MLOps — Nadia Zemani
 
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
+  # ── Job 1 : Tests unitaires ────────────────────────────────────────────────
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - name: Install
-        run: pip install fastapi uvicorn timm albumentations opencv-python-headless Pillow numpy python-multipart torch torchvision --index-url https://download.pytorch.org/whl/cpu pytest httpx
-      - name: Test
-        run: pytest tests/ -v
 
+      - name: Install dependencies
+        run: |
+          pip install fastapi uvicorn timm albumentations \
+            opencv-python-headless Pillow numpy python-multipart \
+            torch torchvision --index-url https://download.pytorch.org/whl/cpu \
+            pytest pytest-cov httpx mlflow prometheus-client \
+            faiss-cpu pandas evidently
+
+      - name: Download model weights
+        run: |
+          pip install gdown
+          gdown --id 1_your_model_file_id -O models/model_complet_nadia_94pct.pth || \
+          echo "Model download skipped — using mock"
+
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ -v \
+            --cov=src \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under=80
+        env:
+          PYTHONPATH: src
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+  # ── Job 2 : Build Docker ───────────────────────────────────────────────────
   build:
     needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Build Docker
-        run: docker build -t brain-tumor-api .
+
+      - name: Build Docker image
+        run: docker build -t brain-tumor-api:latest .
+
+      - name: Verify image
+        run: |
+          docker images brain-tumor-api
+          echo "✅ Image construite avec succès"
+
+  # ── Job 3 : Résumé ────────────────────────────────────────────────────────
+  summary:
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pipeline summary
+        run: |
+          echo "================================"
+          echo "✅ Tests    : PASSED"
+          echo "✅ Coverage : > 80%"
+          echo "✅ Docker   : BUILD OK"
+          echo "================================"
+          echo "🚀 Pipeline MLOps — PFA 2024/2025"
+          echo "   Nadia Zemani — ENSIAS Rabat"
+          echo "================================"

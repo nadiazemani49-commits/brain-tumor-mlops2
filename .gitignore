@@ -1,6 +1,22 @@
+# Modèle (trop lourd pour GitHub)
 models/*.pth
+
+# Logs
+logs/
+*.jsonl
+
+# MLflow
+mlruns/
+
+# Python
 __pycache__/
 *.pyc
-mlruns/
-.env
-*.db
+.coverage
+*.egg-info/
+
+# Docker
+.dockerignore
+
+# Coverage
+coverage.xml
+.pytest_cache/

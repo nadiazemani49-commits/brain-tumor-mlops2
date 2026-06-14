@@ -1,14 +1,13 @@
 services:
   api:
-    build:
-      context: .
-      args:
-        PIP_DEFAULT_TIMEOUT: "300"
+    build: .
     container_name: brain-tumor-api
     ports:
       - "8000:8000"
     volumes:
       - ./models:/app/models
+      - ./logs:/app/logs
+      - ./src:/app/src
     environment:
       - PYTHONUNBUFFERED=1
     restart: unless-stopped
@@ -22,3 +21,32 @@ services:
       - ./mlruns:/mlflow/mlruns
     command: mlflow server --host 0.0.0.0 --port 5000
     restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: brain-tumor-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: brain-tumor-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=nadia2025
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  grafana-storage:

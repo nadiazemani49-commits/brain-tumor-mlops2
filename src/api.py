@@ -10,12 +10,27 @@ import numpy as np
 import cv2
 from pathlib import Path
 import io
+import time
+from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
+from starlette.responses import Response
+import time
+from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
+from starlette.responses import Response
 
 app = FastAPI(
     title="Brain Tumor MRI Diagnostic API",
     description="PFA 2024/2025 — Nadia Zemani — Pr. Mohamed LAZAAR",
     version="1.0.0"
 )
+
+# ── Métriques Prometheus ──────────────────────────────────────────────────────
+PREDICT_COUNTER    = Counter("predictions_total", "Total prédictions", ["predicted_class"])
+PREDICT_LATENCY    = Histogram("prediction_latency_seconds", "Latence prédictions",
+                               buckets=[.1, .25, .5, 1.0, 2.5, 5.0])
+CONFIDENCE_GAUGE   = Gauge("prediction_confidence_last", "Confiance dernière prédiction")
+UNCERTAINTY_GAUGE  = Gauge("prediction_uncertainty_last", "Incertitude dernière prédiction")
+ERROR_COUNTER      = Counter("prediction_errors_total", "Total erreurs")
+
 
 # ── Config ────────────────────────────────────────────────────────────────────
 CLASSES    = ['glioma', 'meningioma', 'notumor', 'pituitary']
@@ -53,7 +68,7 @@ print("⏳ Chargement du modèle...")
 model = BrainTumorClassifier().to(DEVICE)
 
 if MODEL_PATH.exists():
-    checkpoint = torch.load(MODEL_PATH, map_location=DEVICE)
+    checkpoint = torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
     TRAIN_MEAN = checkpoint.get('train_mean', [0.485, 0.456, 0.406])
     TRAIN_STD  = checkpoint.get('train_std',  [0.229, 0.224, 0.225])
@@ -87,6 +102,7 @@ def health():
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
+    start_time = time.time()
     try:
         # Lire l'image
         contents = await file.read()
@@ -112,6 +128,23 @@ async def predict(file: UploadFile = File(...)):
         entropy     = -np.sum(probs * np.log(probs + 1e-10))
         uncertainty = float(entropy / np.log(len(CLASSES)))
 
+        # ── Métriques Prometheus ──────────────────────────────────────
+        PREDICT_COUNTER.labels(predicted_class=pred_class).inc()
+        PREDICT_LATENCY.observe(time.time() - start_time)
+        CONFIDENCE_GAUGE.set(confidence)
+        UNCERTAINTY_GAUGE.set(uncertainty)
+
+        # Log pour monitoring
+        try:
+            log_prediction(
+                filename=file.filename,
+                prediction=pred_class,
+                confidence=confidence,
+                probabilities={cls: round(float(p), 4) for cls, p in zip(CLASSES, probs)},
+                uncertainty=uncertainty,
+            )
+        except Exception as log_err:
+            print(f"LOG ERROR: {log_err}", flush=True)
         return JSONResponse({
             "status"        : "success",
             "prediction"    : pred_class,
@@ -133,3 +166,57 @@ async def predict(file: UploadFile = File(...)):
             status_code=500,
             content={"status": "error", "message": str(e)}
         )
+
+# ── Import monitoring ─────────────────────────────────────────────────────────
+import sys
+sys.path.insert(0, '/app/src')
+try:
+    from monitoring import log_prediction, get_monitoring_stats, generate_drift_report
+    MONITORING_ENABLED = True
+except:
+    MONITORING_ENABLED = False
+
+
+@app.get("/metrics")
+def metrics():
+    """Endpoint Prometheus — métriques temps réel."""
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+@app.get("/monitoring")
+def monitoring():
+    """Statistiques de monitoring en temps réel."""
+    if not MONITORING_ENABLED:
+        return {"error": "Monitoring non disponible"}
+    return get_monitoring_stats()
+
+@app.get("/monitoring/report")
+def monitoring_report():
+    """Génère et retourne le rapport HTML de drift."""
+    if not MONITORING_ENABLED:
+        return {"error": "Monitoring non disponible"}
+    path = generate_drift_report()
+    if path:
+        return {"status": "ok", "report_path": path}
+    return {"status": "not_enough_data", "message": "Minimum 50 prédictions nécessaires"}
+
+@app.get("/model/info")
+def model_info():
+    """Retourne la version du modèle en production depuis MLflow Registry."""
+    try:
+        import mlflow
+        from mlflow.tracking import MlflowClient
+        mlflow.set_tracking_uri("http://brain-tumor-mlflow:5000")
+        client = MlflowClient()
+        versions = client.get_latest_versions("BrainTumorEfficientNetB3", stages=["Production"])
+        if versions:
+            v = versions[0]
+            return {
+                "model"      : v.name,
+                "version"    : v.version,
+                "stage"      : v.current_stage,
+                "description": v.description,
+                "run_id"     : v.run_id,
+            }
+        return {"model": "BrainTumorEfficientNetB3", "version": "1", "stage": "Production"}
+    except Exception as e:
+        return {"model": "EfficientNet-B3", "version": "1", "stage": "Production", "note": str(e)}

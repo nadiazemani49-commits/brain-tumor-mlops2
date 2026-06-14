@@ -24,7 +24,10 @@ RUN pip install --no-cache-dir \
     python-multipart==0.0.9 \
     faiss-cpu==1.8.0 \
     anthropic==0.28.0 \
-    mlflow==2.13.0
+    mlflow==2.13.0 \
+    pandas==2.2.2 \
+    evidently==0.4.33 \
+    prometheus-client==0.20.0
 
 COPY src/ ./src/
 COPY models/ ./models/

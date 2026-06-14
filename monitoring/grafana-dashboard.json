@@ -1,0 +1,49 @@
+{
+  "dashboard": {
+    "title": "Brain Tumor MLOps — PFA 2024/2025 Nadia Zemani",
+    "panels": [
+      {
+        "id": 1, "type": "stat", "title": "Total Prédictions",
+        "gridPos": {"x":0,"y":0,"w":6,"h":4},
+        "targets": [{"expr": "sum(predictions_total)", "datasource": {"type":"prometheus"}}],
+        "options": {"colorMode":"background","graphMode":"area"}
+      },
+      {
+        "id": 2, "type": "stat", "title": "Confiance Moyenne (%)",
+        "gridPos": {"x":6,"y":0,"w":6,"h":4},
+        "targets": [{"expr": "prediction_confidence_last * 100", "datasource": {"type":"prometheus"}}],
+        "options": {"colorMode":"background","graphMode":"none"},
+        "fieldConfig": {"defaults":{"unit":"percent","thresholds":{"steps":[{"color":"red","value":0},{"color":"yellow","value":70},{"color":"green","value":85}]}}}
+      },
+      {
+        "id": 3, "type": "stat", "title": "Latence Moyenne (ms)",
+        "gridPos": {"x":12,"y":0,"w":6,"h":4},
+        "targets": [{"expr": "rate(prediction_latency_seconds_sum[5m]) / rate(prediction_latency_seconds_count[5m]) * 1000", "datasource": {"type":"prometheus"}}],
+        "options": {"colorMode":"background"},
+        "fieldConfig": {"defaults":{"unit":"ms"}}
+      },
+      {
+        "id": 4, "type": "stat", "title": "Erreurs",
+        "gridPos": {"x":18,"y":0,"w":6,"h":4},
+        "targets": [{"expr": "sum(prediction_errors_total)", "datasource": {"type":"prometheus"}}],
+        "options": {"colorMode":"background"},
+        "fieldConfig": {"defaults":{"thresholds":{"steps":[{"color":"green","value":0},{"color":"red","value":1}]}}}
+      },
+      {
+        "id": 5, "type": "timeseries", "title": "Prédictions par classe (temps réel)",
+        "gridPos": {"x":0,"y":4,"w":12,"h":8},
+        "targets": [{"expr": "predictions_total", "legendFormat": "{{predicted_class}}", "datasource": {"type":"prometheus"}}]
+      },
+      {
+        "id": 6, "type": "timeseries", "title": "Latence des prédictions (ms)",
+        "gridPos": {"x":12,"y":4,"w":12,"h":8},
+        "targets": [{"expr": "rate(prediction_latency_seconds_sum[1m]) / rate(prediction_latency_seconds_count[1m]) * 1000", "legendFormat": "Latence ms", "datasource": {"type":"prometheus"}}],
+        "fieldConfig": {"defaults":{"unit":"ms"}}
+      }
+    ],
+    "refresh": "10s",
+    "time": {"from": "now-1h", "to": "now"}
+  },
+  "overwrite": true,
+  "folderId": 0
+}
