@@ -16,11 +16,13 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install PyTorch CPU
+        run: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install other dependencies
         run: |
           pip install fastapi uvicorn timm albumentations \
             opencv-python-headless Pillow numpy python-multipart \
-            torch torchvision --index-url https://download.pytorch.org/whl/cpu \
             pytest pytest-cov httpx mlflow prometheus-client \
             faiss-cpu pandas evidently
 
@@ -29,11 +31,8 @@ jobs:
           python3 -c "
           import torch, torch.nn as nn
           model = nn.Sequential(nn.Linear(1,1))
-          torch.save({
-              'model_state_dict': model.state_dict(),
-              'best_val_acc': 0.9437
-          }, 'models/model_complet_nadia_94pct.pth')
-          print('Mock model créé')
+          torch.save({'model_state_dict': model.state_dict(), 'best_val_acc': 0.9437}, 'models/model_complet_nadia_94pct.pth')
+          print('Mock model cree')
           "
 
       - name: Run tests
@@ -52,9 +51,7 @@ jobs:
         run: docker build -t brain-tumor-api:latest .
 
       - name: Verify image
-        run: |
-          docker images brain-tumor-api
-          echo "✅ Image construite avec succès"
+        run: docker images brain-tumor-api
 
   summary:
     needs: [test, build]
@@ -63,8 +60,8 @@ jobs:
       - name: Pipeline summary
         run: |
           echo "================================"
-          echo "✅ Tests    : PASSED"
-          echo "✅ Docker   : BUILD OK"
-          echo "🚀 Pipeline MLOps — PFA 2024/2025"
-          echo "   Nadia Zemani — ENSIAS Rabat"
+          echo "Tests    : PASSED"
+          echo "Docker   : BUILD OK"
+          echo "Pipeline MLOps PFA 2024/2025"
+          echo "Nadia Zemani — ENSIAS Rabat"
           echo "================================"
