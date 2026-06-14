@@ -28,6 +28,7 @@ jobs:
 
       - name: Create mock model for CI
         run: |
+          mkdir -p models
           python3 -c "
           import torch, torch.nn as nn
           model = nn.Sequential(nn.Linear(1,1))
