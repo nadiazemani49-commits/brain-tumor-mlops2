@@ -3,8 +3,8 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-# Chemin dans le conteneur Docker
-LOGS_DIR = Path('/app/logs')
+_BASE = Path('/app/logs') if Path('/app').exists() else Path(__file__).parent.parent / 'logs'
+LOGS_DIR = _BASE
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 PREDICTIONS_LOG = LOGS_DIR / 'predictions.jsonl'
 
@@ -34,9 +34,10 @@ def load_predictions_log():
 
 def generate_drift_report(output_path=None):
     try:
-        from evidently.report import Report
-        from evidently.metric_preset import DataDriftPreset, DataQualityPreset
-    except:
+        from evidently import Dataset, DataDefinition, Report
+        from evidently.presets import DataDriftPreset
+    except Exception as e:
+        print(f"Evidently import error: {e}")
         return None
 
     df = load_predictions_log()
@@ -44,21 +45,24 @@ def generate_drift_report(output_path=None):
         return None
 
     feature_cols = ['confidence', 'uncertainty',
-                   'prob_glioma', 'prob_meningioma',
-                   'prob_notumor', 'prob_pituitary']
+                    'prob_glioma', 'prob_meningioma',
+                    'prob_notumor', 'prob_pituitary']
     cols = [c for c in feature_cols if c in df.columns]
     mid  = len(df) // 2
 
-    report = Report(metrics=[DataDriftPreset(), DataQualityPreset()])
-    report.run(
-        reference_data=df.iloc[:mid][cols],
-        current_data  =df.iloc[mid:][cols]
-    )
-
     if output_path is None:
         output_path = str(LOGS_DIR / 'drift_report.html')
-    report.save_html(output_path)
-    return output_path
+
+    try:
+        ref = Dataset.from_pandas(df.iloc[:mid][cols], data_definition=DataDefinition())
+        cur = Dataset.from_pandas(df.iloc[mid:][cols], data_definition=DataDefinition())
+        report = Report([DataDriftPreset()])
+        result = report.run(ref, cur)
+        result.save_html(output_path)
+        return output_path
+    except Exception as e:
+        print(f"Drift report error: {e}")
+        return None
 
 def get_monitoring_stats():
     df = load_predictions_log()
@@ -71,12 +75,11 @@ def get_monitoring_stats():
             'drift_detected'    : False,
             'last_prediction'   : None,
         }
-    avg_conf = float(df['confidence'].mean())
     return {
         'total_predictions' : len(df),
-        'avg_confidence'    : round(avg_conf, 4),
+        'avg_confidence'    : round(float(df['confidence'].mean()), 4),
         'avg_uncertainty'   : round(float(df['uncertainty'].mean()), 4),
         'class_distribution': df['prediction'].value_counts().to_dict(),
-        'drift_detected'    : avg_conf < 0.70,
+        'drift_detected'    : float(df['confidence'].mean()) < 0.70,
         'last_prediction'   : str(df['timestamp'].iloc[-1]),
     }

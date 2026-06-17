@@ -19,7 +19,7 @@ from starlette.responses import Response
 
 app = FastAPI(
     title="Brain Tumor MRI Diagnostic API",
-    description="PFA 2024/2025 — Nadia Zemani — Pr. Mohamed LAZAAR",
+    description="PFA — Nadia Zemani",
     version="1.0.0"
 )
 
@@ -172,14 +172,20 @@ async def predict(file: UploadFile = File(...)):
         )
 
 # ── Import monitoring ─────────────────────────────────────────────────────────
-import sys
-sys.path.insert(0, '/app/src')
+# ── Import monitoring ─────────────────────────────────────────────────────────
+import sys, os
+sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent))
 try:
     from monitoring import log_prediction, get_monitoring_stats, generate_drift_report
     MONITORING_ENABLED = True
-except:
+    print("✅ Monitoring chargé")
+except Exception as e:
     MONITORING_ENABLED = False
-
+    print(f"⚠️  Monitoring non disponible: {e}")
+    def log_prediction(*args, **kwargs): pass
+    def get_monitoring_stats(): return {}
+    def generate_drift_report(): return None
 
 @app.get("/metrics")
 def metrics():
